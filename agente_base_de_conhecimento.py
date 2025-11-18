@@ -1,23 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-"""
-kb_agent_menu.py — Ferramenta genérica para SBC com menu, import .txt e catálogo de variáveis.
-
-Recursos:
-- Editor de Base de Conhecimento (regras SE...ENTÃO..., fatos c/ picker de variável)
-- Motor de Inferência (Forward e Backward)
-- Explanação (Por quê? Como?)
-- Menu numérico + aliases + correspondência parcial
-- Importação de regras via .txt (uma por linha; # e // como comentários)
-- Catálogo automático de variáveis derivadas das regras (evita typos)
-- Undo 1 passo para operações mutáveis
-
-Novidades:
-- Picker de **objetivo** no comando "provar": escolhe variável-alvo (de conclusões) e valor sugerido pelas regras.
-- Picker de **fato** usa só variáveis de **condição** e mostra exemplos de valores (das condições).
-"""
-
 import json
 import re
 import os
@@ -27,15 +7,15 @@ from typing import Any, Dict, List, Optional, Tuple, Union, Set
 
 # ========= Representações básicas =========
 
-Condition = Dict[str, Any]   # {"attr": "Temperatura", "op": ">", "value": 38.7}
-Conclusion = Dict[str, Any]  # {"attr": "Risk_Level", "op": "=", "value": "High"}
+Condition = Dict[str, Any]    
+Conclusion = Dict[str, Any]   
 
 @dataclass
 class Rule:
     id: int
     conditions: List[Condition]
     conclusion: Conclusion
-    text: str = ""  # texto original da regra para explanação
+    text: str = ""   
 
 @dataclass
 class Fact:
@@ -47,19 +27,19 @@ class Justification:
     fact: Fact
     rule_id: Optional[int] = None
     premises: List[Fact] = field(default_factory=list)
-    note: str = ""  # "base" | "forward (it=k)" | "backward"
+    note: str = ""   
 
 class KnowledgeBase:
     def __init__(self):
-        self.facts: Dict[str, Any] = {}             # attr -> valor (último)
+        self.facts: Dict[str, Any] = {}           
         self.rules: List[Rule] = []
-        self.justifications: Dict[str, Justification] = {}  # attr -> justificativa
+        self.justifications: Dict[str, Justification] = {}  
         self._next_rule_id = 1
 
         # Catálogos
-        self.attributes: Set[str] = set()                 # todos os attrs (condições + conclusões)
-        self._cond_attrs: Set[str] = set()                # só attrs que aparecem em condições (SE ...)
-        self._concl_attrs: Set[str] = set()               # só attrs que aparecem em conclusões (ENTÃO ...)
+        self.attributes: Set[str] = set()                  
+        self._cond_attrs: Set[str] = set()                 
+        self._concl_attrs: Set[str] = set()                
 
     # ----- Variáveis (catálogo) -----
     def _touch_attribute(self, attr: Optional[str], where: str = "any"):
@@ -92,7 +72,7 @@ class KnowledgeBase:
     def get_conclusion_attributes(self) -> List[str]:
         return sorted(self._concl_attrs)
 
-    # Exemplos de valores (das CONDIÇÕES)
+    # Exemplos de valores  
     def get_example_values_for_attr(self, attr: str, max_n: int = 5) -> List[Any]:
         seen = []
         for r in self.rules:
@@ -428,7 +408,7 @@ def restore_kb(kb: KnowledgeBase, snap: Snapshot):
     kb._concl_attrs = set(snap.concl_attrs)
 
 # ========= Interface com menu =========
-# ====== MENU (substitua o bloco MENU inteiro por este) ======
+# ====== MENU  ======
 MENU = [
     ("adicionar fato",       "af", "Adicionar fato escolhendo variável do catálogo (apenas variáveis de CONDIÇÃO)"),
     ("adicionar regra",      "ar", "Adicionar regra (SE ... ENTÃO ...)"),
@@ -448,7 +428,7 @@ MENU = [
     ("sair",                 "q",  "Sair"),
 ]
 
-# ====== HELP_EXAMPLES (remova a linha do "como") ======
+# ====== HELP_EXAMPLES  ======
 HELP_EXAMPLES = {
     "adicionar fato": "Escolha uma variável listada e informe o valor",
     "adicionar regra": "SE ... ENTÃO",
@@ -559,13 +539,11 @@ def pick_from_list(options: List[str], header: str) -> Optional[str]:
             return options[idx]
         print("[ERRO] Índice inválido.")
         return None
-
-    # match exato
+ 
     for a in options:
         if s == a:
             return a
-
-    # substring / fuzzy
+ 
     partial = [a for a in options if s_low in a.lower()]
     if len(partial) == 1:
         return partial[0]
@@ -607,8 +585,7 @@ def handle_add_fact(kb: KnowledgeBase, undo_stack: List['Snapshot']):
     if attr is None:
         print("Cancelado.")
         return
-
-    # Mostrar valores de exemplo (das condições)
+ 
     examples = kb.get_example_values_for_attr(attr, max_n=5)
     if examples:
         print(f"Exemplos de valores para '{attr}' (das regras): {examples}")
@@ -913,21 +890,18 @@ def diagnose_backward_failure(kb: KnowledgeBase, goal_attr: str, goal_val: Any) 
                 status = "OK" if ok else f"FALHOU (na KB: {a} = {kb.facts[a]!r})"
                 print(f"   • {a} {op} {v}  -> {status}")
     print()
-
-# === [A L T E R A] Handler do 'provar' para explicar automaticamente ===
+ 
 def handle_backward(kb: KnowledgeBase, undo_stack: List['Snapshot']):
     concl_attrs = kb.get_conclusion_attributes()
     if not concl_attrs:
         print("(Não há variáveis-objetivo derivadas de conclusões ainda.)")
         return
-
-    # 1) Escolher variável-objetivo
+ 
     goal_attr = pick_from_list(concl_attrs, header="\nVariáveis-objetivo disponíveis (CONCLUSÕES):")
     if goal_attr is None:
         print("Cancelado.")
         return
-
-    # 2) Sugerir valores possíveis (das conclusões)
+ 
     values = kb.get_goal_values_for_attr(goal_attr)
     if values:
         print(f"\nValores possíveis para '{goal_attr}' (das regras):")
@@ -952,22 +926,18 @@ def handle_backward(kb: KnowledgeBase, undo_stack: List['Snapshot']):
             print("Cancelado.")
             return
         goal_val = parse_value(raw)
-
-    # 3) Provar
+ 
     undo_stack.append(snapshot_kb(kb))
     ok = backward_prove(kb, goal_attr, goal_val)
     print(f"[Objetivo] {goal_attr} = {goal_val} -> " + ("[SIM]" if ok else "[NÃO]"))
-
-    # 4) Explicar automaticamente
+ 
     if ok:
         print("\n= Como foi provado =")
-        print(explain_how(kb, goal_attr, goal_val))
-        # Se preferir estilo "Por quê?" (cadeia com premissas conhecidas), troque para explain_why.
+        print(explain_how(kb, goal_attr, goal_val)) 
     else:
         diagnose_backward_failure(kb, goal_attr, goal_val)
 
-def list_fact_pairs(kb: KnowledgeBase) -> List[Tuple[str, Any]]:
-    # Lista (attr, value) atuais, ordenados por nome do atributo
+def list_fact_pairs(kb: KnowledgeBase) -> List[Tuple[str, Any]]: 
     return sorted([(f.attr, f.value) for f in kb.list_facts()], key=lambda x: x[0].lower())
 
 def pick_fact_pair(kb: KnowledgeBase, header: str) -> Optional[Tuple[str, Any]]:
@@ -994,8 +964,7 @@ def pick_fact_pair(kb: KnowledgeBase, header: str) -> Optional[Tuple[str, Any]]:
 def main():
     kb = KnowledgeBase()
     undo_stack: List[Snapshot] = []
-
-    # Regras demo (opcional)
+ 
     demo_rules: List[str] = []
     for txt in demo_rules:
         conds, concl = parse_rule_pt(txt)
